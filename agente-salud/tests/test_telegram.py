@@ -25,7 +25,6 @@ def test_texto_envia_mensaje():
     url, kw = post.llamadas[0]
     assert url == "https://api.telegram.org/botTOK/sendMessage"
     assert kw["data"] == {"chat_id": "42", "text": "hola"}
-    assert kw["timeout"] > 0
 
 
 def test_foto_envia_archivo(tmp_path):
@@ -50,3 +49,16 @@ def test_excepcion_devuelve_false():
 def test_nulo():
     assert telegram.TelegramNulo().texto("x") is True
     assert telegram.TelegramNulo().foto("a", "b") is True
+
+
+def test_error_no_registra_token(caplog):
+    err = OSError("Max retries for url: https://api.telegram.org/botSECRETO/sendMessage")
+    telegram.Telegram("SECRETO", "1", post=PostFalso(error=err)).texto("x")
+    assert caplog.records and "SECRETO" not in caplog.text
+
+
+def test_timeout_menor_que_el_del_ipad():
+    post = PostFalso()
+    telegram.Telegram("T", "1", post=post).texto("x")
+    conectar, leer = post.llamadas[0][1]["timeout"]
+    assert conectar + leer < 20

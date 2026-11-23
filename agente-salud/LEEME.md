@@ -23,7 +23,8 @@ Todo es gratis. Necesitas unos 45 minutos la primera vez.
 
 ## Paso 2 — Crear tus dos claves
 
-Son contraseñas largas que van dentro de los enlaces. Genera dos distintas:
+Son contraseñas largas que van dentro de los enlaces. Genera tres distintas
+(ejecuta el comando tres veces):
 
 ```
 python -c "import secrets; print(secrets.token_urlsafe(16))"
@@ -31,6 +32,7 @@ python -c "import secrets; print(secrets.token_urlsafe(16))"
 
 - **CLAVE_IPAD**: va en el enlace del iPad.
 - **CLAVE_HISTORIAL**: va en tu enlace del historial. No la compartas.
+- **CLAVE_REVISAR**: solo para la revisión automática del Paso 5.
 
 ## Paso 3 — Publicar el servidor en PythonAnywhere
 
@@ -53,6 +55,7 @@ python -c "import secrets; print(secrets.token_urlsafe(16))"
    os.environ["TELEGRAM_CHAT_ID"] = "123456789"
    os.environ["CLAVE_IPAD"] = "clave-larga-del-ipad"
    os.environ["CLAVE_HISTORIAL"] = "otra-clave-larga"
+   os.environ["CLAVE_REVISAR"] = "tercera-clave-larga"
    os.environ["ZONA"] = "America/Santiago"
    os.environ["DATOS_DIR"] = "/home/TU_USUARIO/agente-salud/datos"
 
@@ -60,7 +63,8 @@ python -c "import secrets; print(secrets.token_urlsafe(16))"
    ```
 
 5. En **Security**, deja **Force HTTPS** en **desactivado** (el iPad 2 a veces
-   no acepta conexiones seguras modernas; ver Paso 4).
+   no acepta conexiones seguras modernas; ver Paso 4). Solo el iPad usará
+   `http`; tú abrirás tu historial con `https`.
 6. Botón verde **Reload**.
 
 ### Primero: la prueba en el iPad (Paso 4)
@@ -72,6 +76,8 @@ Antes de configurar todo, comprueba que el iPad 2 se lleva bien con el servidor:
 2. En el iPad abre Safari y entra a `http://TU_USUARIO.pythonanywhere.com`.
 3. Toca los tres botones. Debes ver ✅ en **Conexión**, escuchar la **voz**
    y, en **Cámara**, sacar una foto y ver ✅.
+   Cuando todo esté instalado, revisa también que la primera foto te llegue
+   **derecha** a Telegram (el iPad 2 a veces las gira); si llega girada, avísame.
 4. Prueba también con `https://` al inicio. Si `https` falla pero `http`
    funciona, usa siempre `http` en el iPad.
 5. Vuelve a poner `from app import app as application` y **Reload**.
@@ -84,7 +90,7 @@ Esto es lo que detecta "no respondió" y "el iPad no se conecta".
 
 1. Crea una cuenta gratis en <https://cron-job.org>.
 2. **Create cronjob**:
-   - URL: `http://TU_USUARIO.pythonanywhere.com/revisar?clave=CLAVE_IPAD`
+   - URL: `https://TU_USUARIO.pythonanywhere.com/revisar?clave=CLAVE_REVISAR`
    - Horario: **cada 10 minutos**.
 3. Guarda.
 
@@ -105,9 +111,11 @@ Si el iPad se reinicia o se corta la luz, repite los pasos 6 y 7.
 
 ## Paso 7 — Tu historial
 
-Guarda en tu teléfono este enlace (agrégalo a la pantalla de inicio):
+Guarda en tu teléfono este enlace (agrégalo a la pantalla de inicio).
+Usa siempre **https** (con la "s"): así nadie en la misma red Wi-Fi puede
+ver tu clave ni las fotos de mamá.
 
-`http://TU_USUARIO.pythonanywhere.com/historial/CLAVE_HISTORIAL`
+`https://TU_USUARIO.pythonanywhere.com/historial/CLAVE_HISTORIAL`
 
 Ahí ves si el iPad está conectado, las respuestas y fotos de los últimos
 14 días, y puedes cambiar el horario (desde, hasta y cada cuántas horas).
@@ -131,8 +139,9 @@ Ahí ves si el iPad está conectado, las respuestas y fotos de los últimos
 | El iPad no se conecta en 30 min | 📵 El iPad de mamá no se conecta desde las 10:15 |
 | El iPad vuelve | ✅ El iPad de mamá volvió a conectarse |
 
-Las alertas de "no respondió" y "sin señal" solo se envían dentro del horario
-de preguntas; de noche no llega nada.
+La alerta de "sin señal" solo se envía dentro del horario de preguntas. La de
+"no respondió" puede llegar hasta una hora después de la última pregunta
+(por ejemplo, entre 21:30 y 22:00); después de eso, de noche no llega nada.
 
 ## Para desarrolladores
 

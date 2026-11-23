@@ -39,8 +39,9 @@ def crear_app(ajustes, telegram=None, reloj=None) -> Flask:
     zona = ZoneInfo(ajustes.get("ZONA") or "America/Santiago")
     clave_ipad = ajustes.get("CLAVE_IPAD") or ""
     clave_historial = ajustes.get("CLAVE_HISTORIAL") or ""
-    if not clave_ipad or not clave_historial:
-        raise RuntimeError("Faltan CLAVE_IPAD y/o CLAVE_HISTORIAL")
+    clave_revisar = ajustes.get("CLAVE_REVISAR") or ""
+    if not clave_ipad or not clave_historial or not clave_revisar:
+        raise RuntimeError("Faltan CLAVE_IPAD, CLAVE_HISTORIAL y/o CLAVE_REVISAR")
     datos_dir = ajustes.get("DATOS_DIR") or os.path.join(AQUI, "datos")
     fotos_dir = os.path.join(datos_dir, "fotos")
     os.makedirs(fotos_dir, exist_ok=True)
@@ -66,8 +67,25 @@ def crear_app(ajustes, telegram=None, reloj=None) -> Flask:
 
     def pendiente(t: datetime):
         p = pregunta_actual(t, horario())
-        if p is None or t - p >= VENTANA_PENDIENTE or db.ultima_respuesta_desde(conn, p):
+        if p is None or t - p >= VENTANA_PENDIENTE or db.respondida(conn, p):
             return None
+        return p
+
+    @app.after_request
+    def privacidad(resp):
+        resp.headers["Referrer-Policy"] = "no-referrer"
+        if request.path.startswith("/historial/"):
+            resp.headers["Cache-Control"] = "private, no-store"
+        return resp
+
+    def leer_pregunta(texto, t):
+        """La pregunta a la que responde el iPad; si no viene o es inválida, la actual."""
+        try:
+            p = datetime.fromisoformat(texto) if texto else None
+        except (TypeError, ValueError):
+            p = None
+        if p is None or p.tzinfo is None or p > t or t - p > timedelta(days=2):
+            return pregunta_actual(t, horario())
         return p
 
     # --- Páginas e iPad ---------------------------------------------------
@@ -105,10 +123,15 @@ def crear_app(ajustes, telegram=None, reloj=None) -> Flask:
         estado = datos.get("estado")
         if estado not in ("bien", "regular", "mal"):
             abort(400)
+        uid = datos.get("uid") if isinstance(datos.get("uid"), str) else None
+        if uid:
+            previa = db.buscar_por_uid(conn, uid[:64])
+            if previa:
+                return jsonify(ok=True, id=previa["id"])
         t = ahora()
-        actual = pregunta_actual(t, horario())
-        tarde = bool(actual) and db.leer_ajuste(conn, "alertado_pregunta", "") == actual.isoformat()
-        i = db.guardar_respuesta(conn, estado, t, tarde=tarde)
+        pregunta = leer_pregunta(datos.get("pregunta"), t)
+        tarde = bool(pregunta) and db.alertada(conn, pregunta)
+        i = db.guardar_respuesta(conn, estado, t, tarde=tarde, pregunta=pregunta, uid=uid[:64] if uid else None)
         emoji, nombre = ESTADOS[estado]
         if estado == "mal":
             msg = "🚨 Mamá dice que se siente MAL — " + _hhmm(t)
@@ -142,15 +165,14 @@ def crear_app(ajustes, telegram=None, reloj=None) -> Flask:
 
     @app.route("/revisar")
     def revisar():
-        exigir_ipad()
+        if not clave_ok(request.args.get("clave"), clave_revisar):
+            abort(403)
         t, h = ahora(), horario()
         alertas = []
         vencida = pregunta_vencida(t, h)
         if (vencida and t - vencida <= VENTANA_PENDIENTE
-                and db.leer_ajuste(conn, "alertado_pregunta", "") != vencida.isoformat()
-                and not db.ultima_respuesta_desde(conn, vencida)):
-            db.guardar_ajuste(conn, "alertado_pregunta", vencida.isoformat())
-            db.guardar_respuesta(conn, "sin_respuesta", t)
+                and not db.respondida(conn, vencida) and not db.alertada(conn, vencida)):
+            db.guardar_respuesta(conn, "sin_respuesta", t, pregunta=vencida)
             telegram.texto("⚠️ Mamá no respondió la pregunta de las " + _hhmm(vencida))
             alertas.append("sin_respuesta")
         latido = db.ultimo_latido(conn)

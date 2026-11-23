@@ -13,7 +13,9 @@ CREATE TABLE IF NOT EXISTS respuestas (
     ts TEXT NOT NULL,
     estado TEXT NOT NULL,
     foto TEXT,
-    tarde INTEGER NOT NULL DEFAULT 0
+    tarde INTEGER NOT NULL DEFAULT 0,
+    pregunta TEXT,
+    uid TEXT UNIQUE
 );
 CREATE TABLE IF NOT EXISTS latidos (ts TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS ajustes (clave TEXT PRIMARY KEY, valor TEXT NOT NULL);
@@ -39,10 +41,11 @@ def _fila(f):
     }
 
 
-def guardar_respuesta(conn, estado: str, ts: datetime, tarde: bool = False) -> int:
+def guardar_respuesta(conn, estado: str, ts: datetime, tarde: bool = False,
+                      pregunta: datetime = None, uid: str = None) -> int:
     cur = conn.execute(
-        "INSERT INTO respuestas (ts, estado, tarde) VALUES (?, ?, ?)",
-        (_iso(ts), estado, int(tarde)),
+        "INSERT INTO respuestas (ts, estado, tarde, pregunta, uid) VALUES (?, ?, ?, ?, ?)",
+        (_iso(ts), estado, int(tarde), _iso(pregunta) if pregunta else None, uid),
     )
     conn.commit()
     return cur.lastrowid
@@ -55,6 +58,24 @@ def adjuntar_foto(conn, respuesta_id: int, nombre_archivo: str) -> None:
 
 def obtener_respuesta(conn, respuesta_id: int):
     return _fila(conn.execute("SELECT * FROM respuestas WHERE id = ?", (respuesta_id,)).fetchone())
+
+
+def buscar_por_uid(conn, uid: str):
+    return _fila(conn.execute("SELECT * FROM respuestas WHERE uid = ?", (uid,)).fetchone())
+
+
+def respondida(conn, pregunta: datetime) -> bool:
+    """¿Hay una respuesta real (no 'sin_respuesta') para esa pregunta?"""
+    return conn.execute(
+        "SELECT 1 FROM respuestas WHERE pregunta = ? AND estado != 'sin_respuesta'", (_iso(pregunta),)
+    ).fetchone() is not None
+
+
+def alertada(conn, pregunta: datetime) -> bool:
+    """¿Ya se avisó que esa pregunta quedó sin respuesta?"""
+    return conn.execute(
+        "SELECT 1 FROM respuestas WHERE pregunta = ? AND estado = 'sin_respuesta'", (_iso(pregunta),)
+    ).fetchone() is not None
 
 
 def listar_respuestas(conn, desde: datetime) -> list:

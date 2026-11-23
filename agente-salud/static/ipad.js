@@ -7,6 +7,8 @@
   var CADA_LATIDO = 5 * 60 * 1000;      // avisar que el iPad está vivo
   var CADA_VOZ = 5 * 60 * 1000;         // repetir la pregunta en voz alta
   var CADA_REINTENTO = 30 * 1000;       // reintentar envíos fallidos
+  var VUELTA_REPOSO = 3 * 60 * 1000;    // si nadie toca la pantalla de foto, volver al reposo
+  var VIDA_PENDIENTE = 12 * 60 * 60 * 1000;  // descartar respuestas sin enviar más viejas que esto
   var MAX_LADO = 640;
   var DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
@@ -17,6 +19,7 @@
   var ultimoId = null;                   // id de la última respuesta, para la foto
   var temporizadorVoz = null;
   var temporizadorGracias = null;
+  var temporizadorVuelta = null;
 
   // --- utilidades -------------------------------------------------------
 
@@ -67,6 +70,15 @@
     if (id !== 'pregunta' && temporizadorVoz) {
       clearInterval(temporizadorVoz);
       temporizadorVoz = null;
+    }
+    if (temporizadorVuelta) {
+      clearTimeout(temporizadorVuelta);
+      temporizadorVuelta = null;
+    }
+    if (id === 'foto' || id === 'enviando') {
+      temporizadorVuelta = setTimeout(function () {
+        if (visible() === id) { mostrar('reposo'); }
+      }, VUELTA_REPOSO);
     }
   }
 
@@ -132,7 +144,9 @@
     $('proxima').innerHTML = 'Próxima pregunta: ' + horaDeIso(datos.proxima);
     var hay = datos.pendiente && datos.pendiente !== respondida;
     var v = visible();
-    if (hay && v === 'reposo') { preguntar(); }
+    // Una pregunta nueva gana sobre cualquier pantalla (salvo el inicio),
+    // para que el iPad nunca quede pegado en la foto.
+    if (hay && v !== 'inicio' && v !== 'pregunta') { preguntar(); }
     if (!hay && v === 'pregunta') { mostrar('reposo'); }
   }
 
@@ -144,9 +158,19 @@
 
   function latido() { api('POST', 'latido', null, null, null); }
 
+  function nuevoUid() {
+    return new Date().getTime().toString(36) + Math.random().toString(36).substr(2, 8);
+  }
+
   function enviarPendiente() {
     var pendiente = leer('envioPendiente');
     if (!pendiente) { return; }
+    var datos0 = null;
+    try { datos0 = JSON.parse(pendiente); } catch (e) { datos0 = null; }
+    if (!datos0 || !datos0.creada || new Date().getTime() - datos0.creada > VIDA_PENDIENTE) {
+      guardar('envioPendiente', null);
+      return;
+    }
     api('POST', 'respuesta', pendiente, 'application/json', function (ok, datos, status) {
       if (ok || (status >= 400 && status < 500)) { guardar('envioPendiente', null); }
       if (ok) { ultimoId = datos.id; }
@@ -156,7 +180,9 @@
   function responder(estado) {
     respondida = config && config.pendiente ? config.pendiente : null;
     guardar('respondida', respondida);
-    guardar('envioPendiente', JSON.stringify({ estado: estado }));
+    guardar('envioPendiente', JSON.stringify({
+      estado: estado, pregunta: respondida, uid: nuevoUid(), creada: new Date().getTime()
+    }));
     ultimoId = null;
     mostrar('enviando');
     $('enviando').getElementsByTagName('h1')[0].innerHTML = 'Un momento…';
@@ -186,20 +212,28 @@
     lector.onload = function () {
       var img = new Image();
       img.onload = function () {
-        var escala = Math.min(1, MAX_LADO / Math.max(img.width, img.height));
-        var lienzo = document.createElement('canvas');
-        lienzo.width = Math.round(img.width * escala);
-        lienzo.height = Math.round(img.height * escala);
-        lienzo.getContext('2d').drawImage(img, 0, 0, lienzo.width, lienzo.height);
-        var datos = new FormData();
-        datos.append('foto', dataUrlABlob(lienzo.toDataURL('image/jpeg', 0.7)), 'foto.jpg');
-        api('POST', 'foto?id=' + ultimoId, datos, null, function () { gracias(); });
+        try {
+          enviarImagen(img);
+        } catch (e) {
+          gracias();
+        }
       };
       img.onerror = function () { gracias(); };
       img.src = lector.result;
     };
     lector.onerror = function () { gracias(); };
     lector.readAsDataURL(archivo);
+  }
+
+  function enviarImagen(img) {
+    var escala = Math.min(1, MAX_LADO / Math.max(img.width, img.height));
+    var lienzo = document.createElement('canvas');
+    lienzo.width = Math.round(img.width * escala);
+    lienzo.height = Math.round(img.height * escala);
+    lienzo.getContext('2d').drawImage(img, 0, 0, lienzo.width, lienzo.height);
+    var datos = new FormData();
+    datos.append('foto', dataUrlABlob(lienzo.toDataURL('image/jpeg', 0.7)), 'foto.jpg');
+    api('POST', 'foto?id=' + ultimoId, datos, null, function () { gracias(); });
   }
 
   // --- arranque -----------------------------------------------------------

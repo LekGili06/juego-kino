@@ -39,7 +39,7 @@ class Reloj:
 def entorno(tmp_path):
     tg, reloj = TelegramFalso(), Reloj()
     app = crear_app(
-        {"CLAVE_IPAD": "ki", "CLAVE_HISTORIAL": "kh", "ZONA": "America/Santiago", "DATOS_DIR": str(tmp_path)},
+        {"CLAVE_IPAD": "ki", "CLAVE_HISTORIAL": "kh", "CLAVE_REVISAR": "kr", "ZONA": "America/Santiago", "DATOS_DIR": str(tmp_path)},
         telegram=tg, reloj=reloj,
     )
     return app.test_client(), tg, reloj, app
@@ -141,9 +141,9 @@ def test_revisar_sin_respuesta_una_vez(entorno):
     c, tg, reloj, _ = entorno
     c.post("/api/latido?clave=ki")
     reloj.poner(9, 30)
-    assert c.get("/revisar?clave=ki").get_json()["alertas"] == ["sin_respuesta"]
+    assert c.get("/revisar?clave=kr").get_json()["alertas"] == ["sin_respuesta"]
     assert tg.textos == ["⚠️ Mamá no respondió la pregunta de las 09:00"]
-    assert c.get("/revisar?clave=ki").get_json()["alertas"] == []
+    assert c.get("/revisar?clave=kr").get_json()["alertas"] == []
     assert len(tg.textos) == 1
 
 
@@ -153,13 +153,13 @@ def test_revisar_con_respuesta_no_alerta(entorno):
     c.post("/api/latido?clave=ki")
     responder(c, "bien")
     reloj.poner(9, 31)
-    assert c.get("/revisar?clave=ki").get_json()["alertas"] == []
+    assert c.get("/revisar?clave=kr").get_json()["alertas"] == []
 
 
 def test_revisar_de_noche_no_alerta(entorno):
     c, tg, reloj, _ = entorno
     reloj.poner(23, 0)
-    assert c.get("/revisar?clave=ki").get_json()["alertas"] == []
+    assert c.get("/revisar?clave=kr").get_json()["alertas"] == []
     assert tg.textos == []
 
 
@@ -168,7 +168,7 @@ def test_respuesta_tarde(entorno):
     reloj.poner(11, 0)
     c.post("/api/latido?clave=ki")
     reloj.poner(11, 30)
-    c.get("/revisar?clave=ki")
+    c.get("/revisar?clave=kr")
     reloj.poner(11, 40)
     responder(c, "bien")
     assert tg.textos[-1] == "(respondió tarde) 😀 Mamá: Bien — 11:40"
@@ -183,10 +183,56 @@ def test_sin_senal_y_reconexion(entorno):
     c.post("/api/latido?clave=ki")
     responder(c, "bien")
     reloj.poner(9, 31)
-    assert c.get("/revisar?clave=ki").get_json()["alertas"] == ["sin_senal"]
+    assert c.get("/revisar?clave=kr").get_json()["alertas"] == ["sin_senal"]
     assert tg.textos[-1] == "📵 El iPad de mamá no se conecta desde las 09:00"
-    assert c.get("/revisar?clave=ki").get_json()["alertas"] == []
+    assert c.get("/revisar?clave=kr").get_json()["alertas"] == []
     c.post("/api/latido?clave=ki")
     assert tg.textos[-1] == "✅ El iPad de mamá volvió a conectarse"
     c.post("/api/latido?clave=ki")
     assert tg.textos.count("✅ El iPad de mamá volvió a conectarse") == 1
+
+
+def test_revisar_exige_su_propia_clave(entorno):
+    c, *_ = entorno
+    assert c.get("/revisar?clave=ki").status_code == 403
+    assert c.get("/revisar?clave=kr").status_code == 200
+
+
+def test_respuesta_repetida_no_duplica(entorno):
+    c, tg, _, app = entorno
+    cuerpo = {"estado": "mal", "uid": "abc123"}
+    a = c.post("/api/respuesta?clave=ki", json=cuerpo).get_json()
+    b = c.post("/api/respuesta?clave=ki", json=cuerpo).get_json()
+    assert a["id"] == b["id"]
+    assert len(tg.textos) == 1
+    assert len(db.listar_respuestas(app.config["DB"], datetime(2026, 11, 23, tzinfo=Z))) == 1
+
+
+def test_respuesta_atrasada_se_atribuye_a_su_pregunta(entorno):
+    c, tg, reloj, _ = entorno
+    reloj.ahora = datetime(2026, 11, 24, 9, 5, tzinfo=Z)
+    c.post("/api/respuesta?clave=ki", json={"estado": "bien", "uid": "x1",
+                                           "pregunta": "2026-11-23T21:00:00-03:00"})
+    assert c.get("/api/config?clave=ki").get_json()["pendiente"].startswith("2026-11-24T09:00")
+    reloj.ahora = datetime(2026, 11, 24, 9, 31, tzinfo=Z)
+    c.post("/api/latido?clave=ki")
+    assert c.get("/revisar?clave=kr").get_json()["alertas"] == ["sin_respuesta"]
+
+
+def test_respuesta_a_tiempo_no_es_tarde_por_otra_pregunta(entorno):
+    c, tg, reloj, _ = entorno
+    reloj.poner(9, 0)
+    c.post("/api/latido?clave=ki")
+    reloj.poner(9, 31)
+    c.get("/revisar?clave=kr")
+    reloj.poner(11, 5)
+    c.post("/api/respuesta?clave=ki", json={"estado": "bien", "uid": "x2",
+                                           "pregunta": "2026-11-23T11:00:00-03:00"})
+    assert tg.textos[-1] == "😀 Mamá: Bien — 11:05"
+
+
+def test_paginas_privadas_sin_referer_ni_cache(entorno):
+    c, *_ = entorno
+    r = c.get("/historial/kh")
+    assert r.headers["Referrer-Policy"] == "no-referrer"
+    assert "no-store" in r.headers["Cache-Control"]

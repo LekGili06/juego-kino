@@ -14,13 +14,13 @@ class Telegram:
 
     def _enviar(self, metodo, data, files=None) -> bool:
         try:
-            r = self.post(self.base + metodo, data=data, files=files, timeout=15)
+            r = self.post(self.base + metodo, data=data, files=files, timeout=(5, 10))
             if r.status_code != 200:
                 log.warning("Telegram %s respondió %s", metodo, r.status_code)
                 return False
             return True
         except Exception as e:  # noqa: BLE001 - nunca romper la respuesta al iPad
-            log.warning("Telegram %s falló: %s", metodo, e)
+            log.warning("Telegram %s falló: %s", metodo, type(e).__name__)  # sin el mensaje: trae el token
             return False
 
     def texto(self, mensaje: str) -> bool:
