@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba iPad</title>
+<style>
+  body { font-family: Helvetica, Arial, sans-serif; background: #fff8ec; color: #222; margin: 0; padding: 24px; }
+  h1 { font-size: 40px; }
+  button { display: block; width: 100%; font-size: 34px; padding: 24px; margin: 16px 0; border: 0; border-radius: 16px; background: #2f6f4f; color: #fff; }
+  label.boton { display: block; text-align: center; font-size: 34px; padding: 24px; margin: 16px 0; border-radius: 16px; background: #2f6f4f; color: #fff; }
+  #archivo { position: absolute; left: -9999px; }
+  #registro { font-size: 26px; white-space: pre-wrap; background: #fff; padding: 16px; border-radius: 12px; }
+</style>
+</head>
+<body>
+<h1>Prueba del iPad</h1>
+<button id="b-conexion">1. Probar conexión</button>
+<button id="b-voz">2. Probar voz</button>
+<label class="boton" for="archivo">3. Probar cámara</label>
+<input type="file" id="archivo" accept="image/*" capture="user">
+<div id="registro">Resultados:</div>
+<script>
+(function () {
+  var registro = document.getElementById('registro');
+  function anotar(texto) { registro.innerHTML += '\n' + texto; }
+
+  window.onerror = function (msg) { anotar('❌ Error JS: ' + msg); };
+  anotar('Página: ' + location.protocol + ' — ' + navigator.userAgent);
+
+  function enviar(cuerpo, tipo, etiqueta) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', 'eco', true);
+    if (tipo) { xhr.setRequestHeader('Content-Type', tipo); }
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState !== 4) { return; }
+      if (xhr.status === 200) { anotar('✅ ' + etiqueta + ': ' + xhr.responseText); }
+      else { anotar('❌ ' + etiqueta + ': estado ' + xhr.status); }
+    };
+    xhr.send(cuerpo);
+  }
+
+  document.getElementById('b-conexion').onclick = function () {
+    enviar('{"hola":1}', 'application/json', 'Conexión');
+  };
+
+  document.getElementById('b-voz').onclick = function () {
+    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) {
+      anotar('❌ Voz: este iPad no la soporta');
+      return;
+    }
+    var u = new SpeechSynthesisUtterance('Hola, ¿cómo te sientes?');
+    u.lang = 'es-ES';
+    window.speechSynthesis.speak(u);
+    anotar('✅ Voz: ¿se escuchó la pregunta?');
+  };
+
+  document.getElementById('archivo').onchange = function () {
+    var archivo = this.files && this.files[0];
+    if (!archivo) { anotar('❌ Cámara: no se recibió foto'); return; }
+    anotar('Foto original: ' + Math.round(archivo.size / 1024) + ' KB');
+    var lector = new FileReader();
+    lector.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        var escala = Math.min(1, 640 / Math.max(img.width, img.height));
+        var lienzo = document.createElement('canvas');
+        lienzo.width = Math.round(img.width * escala);
+        lienzo.height = Math.round(img.height * escala);
+        lienzo.getContext('2d').drawImage(img, 0, 0, lienzo.width, lienzo.height);
+        var datos = lienzo.toDataURL('image/jpeg', 0.7);
+        anotar('Foto reducida: ' + lienzo.width + 'x' + lienzo.height);
+        enviar(datos, 'text/plain', 'Cámara');
+      };
+      img.src = lector.result;
+    };
+    lector.readAsDataURL(archivo);
+  };
+})();
+</script>
+</body>
+</html>
