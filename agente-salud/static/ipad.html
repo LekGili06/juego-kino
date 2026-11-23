@@ -1,1 +1,78 @@
-<!DOCTYPE html><title>iPad</title>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="¿Cómo estás?">
+<title>¿Cómo estás?</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    background: #fff6e8; color: #3a2a1a;
+    -webkit-user-select: none; -webkit-tap-highlight-color: rgba(0,0,0,0);
+  }
+  .pantalla { display: none; height: 100%; box-sizing: border-box; padding: 40px; text-align: center; }
+  .pantalla.visible { display: block; }
+  h1 { font-size: 64px; margin: 40px 0 32px; font-weight: bold; }
+  p { font-size: 40px; margin: 20px 0; }
+  #hora { font-size: 140px; font-weight: bold; margin-top: 120px; }
+  #fecha { font-size: 40px; color: #7a5a3a; }
+  .grande {
+    display: block; width: 100%; box-sizing: border-box;
+    font-size: 52px; font-weight: bold; padding: 36px 20px; margin: 0 0 28px;
+    border: 0; border-radius: 28px; color: #fff; text-align: center; cursor: pointer;
+  }
+  .bien { background: #2e7d4f; }
+  .regular { background: #c98a12; }
+  .mal { background: #b3362b; }
+  .neutro { background: #5b6f8a; }
+  .suave { background: #d9cbb8; color: #3a2a1a; }
+  #inicio .grande { margin-top: 200px; background: #2e7d4f; padding: 60px 20px; }
+  #archivo { position: absolute; left: -9999px; }
+  #punto {
+    position: fixed; right: 16px; bottom: 16px; width: 18px; height: 18px;
+    border-radius: 9px; background: #b3362b; display: none;
+  }
+</style>
+</head>
+<body>
+
+<div id="inicio" class="pantalla visible">
+  <button class="grande" id="b-empezar">Toca para empezar 💛</button>
+</div>
+
+<div id="reposo" class="pantalla">
+  <div id="hora">--:--</div>
+  <div id="fecha"></div>
+  <p>Todo bien 💛</p>
+  <p id="proxima"></p>
+</div>
+
+<div id="pregunta" class="pantalla">
+  <h1>¿Cómo te sientes?</h1>
+  <button class="grande bien" data-estado="bien">😀 Bien</button>
+  <button class="grande regular" data-estado="regular">😐 Más o menos</button>
+  <button class="grande mal" data-estado="mal">😟 Mal</button>
+</div>
+
+<div id="foto" class="pantalla">
+  <h1>¿Te sacas una foto?</h1>
+  <label class="grande neutro" for="archivo">📷 Sacar foto</label>
+  <input type="file" id="archivo" accept="image/*" capture="user">
+  <button class="grande suave" id="b-no-foto">Ahora no</button>
+</div>
+
+<div id="enviando" class="pantalla">
+  <h1>Enviando foto…</h1>
+</div>
+
+<div id="gracias" class="pantalla">
+  <h1 style="margin-top:200px">¡Gracias! 💛</h1>
+</div>
+
+<div id="punto"></div>
+<script src="/static/ipad.js"></script>
+</body>
+</html>
