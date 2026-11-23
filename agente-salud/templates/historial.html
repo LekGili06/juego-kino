@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Cómo está mamá</title>
+<style>
+  :root {
+    --fondo: #f7f3ee; --tarjeta: #ffffff; --texto: #2b2118; --suave: #7a6a5a;
+    --borde: #e8dfd4; --ok: #2e7d4f; --mal: #b3362b; --regular: #c98a12;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fondo: #1b1714; --tarjeta: #26201b; --texto: #f1e9df; --suave: #b3a493;
+      --borde: #3a3129; --ok: #5cb88a; --mal: #e0685c; --regular: #e0a93a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fondo); color: var(--texto);
+         font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 26px; margin: 8px 0 16px; }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .05em; color: var(--suave); margin: 28px 0 8px; }
+  .tarjeta { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: 14px; padding: 14px 16px; }
+  .estado { display: flex; align-items: center; gap: 10px; font-size: 17px; }
+  .punto { width: 12px; height: 12px; border-radius: 50%; background: var(--mal); flex: none; }
+  .punto.ok { background: var(--ok); }
+  .suave { color: var(--suave); font-size: 14px; margin-top: 6px; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--borde); }
+  li:first-child { border-top: 0; }
+  .hora { font-variant-numeric: tabular-nums; color: var(--suave); width: 48px; flex: none; }
+  .emoji { font-size: 26px; }
+  .nombre { flex: 1; font-size: 17px; }
+  .e-mal .nombre { color: var(--mal); font-weight: 600; }
+  .e-sin_respuesta .nombre { color: var(--regular); }
+  .tarde { font-size: 13px; color: var(--suave); }
+  img.mini { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; flex: none; }
+  form { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; align-items: end; }
+  label { font-size: 13px; color: var(--suave); display: block; }
+  input { width: 100%; font-size: 16px; padding: 8px; border-radius: 8px; border: 1px solid var(--borde);
+          background: var(--fondo); color: var(--texto); }
+  button { grid-column: 1 / -1; font-size: 16px; padding: 12px; border: 0; border-radius: 10px;
+           background: var(--ok); color: #fff; font-weight: 600; }
+  .error { color: var(--mal); margin: 0 0 10px; }
+  @media (max-width: 420px) { form { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Cómo está mamá 💛</h1>
+
+  <div class="tarjeta">
+    <div class="estado"><span class="punto{% if ok_ipad %} ok{% endif %}"></span>iPad: {{ texto_ipad }}</div>
+    <div class="suave">Próxima pregunta: {{ proxima }}</div>
+  </div>
+
+  <h2>Últimos 14 días</h2>
+  {% if not dias %}
+    <div class="tarjeta suave">Todavía no hay respuestas.</div>
+  {% endif %}
+  {% for dia in dias %}
+    <h2>{{ dia.fecha }}</h2>
+    <div class="tarjeta">
+      <ul>
+      {% for r in dia.respuestas %}
+        <li class="e-{{ r.estado }}">
+          <span class="hora">{{ r.hora }}</span>
+          <span class="emoji">{{ r.emoji }}</span>
+          <span class="nombre">{{ r.nombre }}{% if r.tarde %} <span class="tarde">(tarde)</span>{% endif %}</span>
+          {% if r.foto %}
+            <a href="/historial/{{ clave }}/foto/{{ r.id }}"><img class="mini" src="/historial/{{ clave }}/foto/{{ r.id }}" alt="Foto de las {{ r.hora }}" loading="lazy"></a>
+          {% endif %}
+        </li>
+      {% endfor %}
+      </ul>
+    </div>
+  {% endfor %}
+
+  <h2>Horario de preguntas</h2>
+  <div class="tarjeta">
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    <form method="post">
+      <div><label for="inicio">Desde</label><input type="time" id="inicio" name="inicio" value="{{ inicio }}" required></div>
+      <div><label for="fin">Hasta</label><input type="time" id="fin" name="fin" value="{{ fin }}" required></div>
+      <div><label for="cada">Cada (horas)</label><input type="number" id="cada" name="cada_horas" min="1" max="6" value="{{ cada_horas }}" required></div>
+      <button type="submit">Guardar horario</button>
+    </form>
+  </div>
+</main>
+</body>
+</html>

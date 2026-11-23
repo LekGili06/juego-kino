@@ -4,7 +4,7 @@ import os
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from flask import Flask, abort, jsonify, request, send_from_directory
+from flask import Flask, abort, jsonify, redirect, render_template, request, send_from_directory
 
 import db
 from alertas import MARGEN, Horario, en_horario, pregunta_actual, pregunta_vencida, proxima_pregunta
@@ -163,6 +163,67 @@ def crear_app(ajustes, telegram=None, reloj=None) -> Flask:
                 telegram.texto("📵 El iPad de mamá no se conecta desde las " + _hhmm(latido.astimezone(zona)))
             alertas.append("sin_senal")
         return jsonify(alertas=alertas)
+
+    # --- Historial (para el usuario) --------------------------------------
+
+    def exigir_historial(clave):
+        if not clave_ok(clave, clave_historial):
+            abort(403)
+
+    def estado_ipad(t):
+        latido = db.ultimo_latido(conn)
+        if latido is None:
+            return "todavía no se ha conectado", False
+        minutos = int((t - latido).total_seconds() // 60)
+        if t - latido > MARGEN:
+            return "Sin señal desde las " + _hhmm(latido.astimezone(zona)), False
+        return "Conectado hace %d min" % max(minutos, 0), True
+
+    def validar_horario(form):
+        try:
+            inicio = time.fromisoformat(form.get("inicio", ""))
+            fin = time.fromisoformat(form.get("fin", ""))
+            cada = int(form.get("cada_horas", ""))
+        except ValueError:
+            return None
+        if not 1 <= cada <= 6 or inicio >= fin:
+            return None
+        return inicio.strftime("%H:%M"), fin.strftime("%H:%M"), str(cada)
+
+    @app.route("/historial/<clave>", methods=["GET", "POST"])
+    def historial(clave):
+        exigir_historial(clave)
+        error = None
+        if request.method == "POST":
+            valores = validar_horario(request.form)
+            if valores:
+                for k, v in zip(("inicio", "fin", "cada_horas"), valores):
+                    db.guardar_ajuste(conn, k, v)
+                return redirect(request.path)
+            error = "No se pudo guardar: revisa que el inicio sea antes del fin y que la frecuencia sea de 1 a 6 horas."
+        t, h = ahora(), horario()
+        dias = []
+        for r in db.listar_respuestas(conn, t - timedelta(days=14)):
+            local = r["ts"].astimezone(zona)
+            etiqueta = local.strftime("%d/%m/%Y")
+            if not dias or dias[-1]["fecha"] != etiqueta:
+                dias.append({"fecha": etiqueta, "respuestas": []})
+            emoji, nombre = ESTADOS[r["estado"]]
+            dias[-1]["respuestas"].append(dict(r, hora=_hhmm(local), emoji=emoji, nombre=nombre))
+        texto_ipad, ok_ipad = estado_ipad(t)
+        return render_template(
+            "historial.html", dias=dias, clave=clave, error=error, texto_ipad=texto_ipad, ok_ipad=ok_ipad,
+            inicio=h.inicio.strftime("%H:%M"), fin=h.fin.strftime("%H:%M"), cada_horas=h.cada_horas,
+            proxima=_hhmm(proxima_pregunta(t, h)),
+        )
+
+    @app.route("/historial/<clave>/foto/<int:respuesta_id>")
+    def historial_foto(clave, respuesta_id):
+        exigir_historial(clave)
+        r = db.obtener_respuesta(conn, respuesta_id)
+        if r is None or not r["foto"]:
+            abort(404)
+        return send_from_directory(fotos_dir, r["foto"])
 
     return app
 
