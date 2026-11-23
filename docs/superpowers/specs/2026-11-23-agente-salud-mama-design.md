@@ -9,6 +9,11 @@ app le pregunta cada cierto tiempo cómo se siente, le pide una foto, y el
 usuario se entera desde su teléfono (alerta inmediata) y puede revisar el
 historial cuando quiera.
 
+## Consentimiento
+
+La mamá sabe que el iPad le hará preguntas y le pedirá fotos, y está de
+acuerdo (confirmado por el usuario).
+
 ## Objetivos
 
 - El iPad de la mamá pregunta "¿Cómo te sientes?" según un horario
